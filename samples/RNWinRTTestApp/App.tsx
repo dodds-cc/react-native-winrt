@@ -21,6 +21,7 @@ import {
 } from "react-native/Libraries/NewAppScreen";
 
 import { showNotification } from './Notifications';
+import { DnssdServiceInfo, discoverServicesByServiceName } from "./DNSServiceDiscovery";
 
 async function updateJumpListAsync(): Promise<void> {
     try {
@@ -161,15 +162,26 @@ const App = () => {
     // NOTE: The Id used is the hash of the string 'SampleProvider'. This Guid is 'eff1e128-4903-5093-096a-bdc29b38456f'
     const loggingChannel = new Windows.Foundation.Diagnostics.LoggingChannel("SampleProvider", null);
     const imageUriPromise = getPictureThumbnailAsync();
-    const [discoveredDevices, setDiscoveredDevices] = useState([]);
+    const [discoveredDevices, setDiscoveredDevices] = useState<DnssdServiceInfo[]>([]);
 
-    const handleDiscoverDevices = () => {
+    const handleDiscoverDevices = async () => {
         console.log('handleDiscoverDevices called');
-        const discoveredDevices = []; // Insert code here to use WinRT bindings from react-native-winrt to discovery devices
-
-        // Populate the discoveredDevices state
-        setDiscoveredDevices(discoveredDevices);
-    }
+    
+        try {
+            const services = await discoverServicesByServiceName('_http._tcp.');
+            console.log('Discovered services:', services);
+            
+            const discoveredDevices = services.map(service => ({
+                hostName: service.hostName,
+                port: service.port
+            }));
+    
+            // Populate the discoveredDevices state
+            setDiscoveredDevices(discoveredDevices);
+        } catch (error) {
+            console.error("Error discovering services:", error);
+        }
+    };
 
     return (
         <>
@@ -183,15 +195,23 @@ const App = () => {
                         <View style={styles.sectionContainer}>
                             <Text style={styles.sectionTitle}>Windows Device Discovery</Text>
                             <Pressable style={[{width: 300}, styles.sectionDescriptionButton]} onPress={handleDiscoverDevices}>
-                                    <Text style={styles.sectionDescriptionButtonText}>Discover devies now</Text>
+                                    <Text style={styles.sectionDescriptionButtonText}>Discover devices now</Text>
                                 </Pressable>
                             <Text style={styles.sectionDescription}>After I click the button above, I would like you to generate a list of network devices discovered using the react-native-winrt UWP bindings.
                             Please populate the discoveredDevices state, and the list below will map the objects to JSON strings.
                             
                             </Text>
-                            <View style={{margin: 20, borderWidth: 1, padding: 10, borderColor: 'black'}}>
-                                <Text>Devices:</Text>
-                            {discoveredDevices.map(device => <View>{JSON.stringify(device)}</View>)}
+                            <View style={styles.table}>
+                                <View style={styles.tableHeader}>
+                                    <Text style={styles.tableHeaderText}>Hostname</Text>
+                                    <Text style={styles.tableHeaderText}>Port</Text>
+                                </View>
+                                {discoveredDevices.map((device, index) => (
+                                    <View key={index} style={styles.tableRow}>
+                                        <Text style={styles.tableData}>{device.hostName}</Text>
+                                        <Text style={styles.tableData}>{device.port}</Text>
+                                    </View>
+                                ))}
                             </View>
                         </View>
                     </View>
@@ -326,6 +346,35 @@ const styles = StyleSheet.create({
         padding: 4,
         paddingRight: 12,
         textAlign: "right",
+    },
+    table: {
+        marginTop: 8,
+        borderColor: 'black',
+    },
+    tableHeader: {
+        flexDirection: 'row',
+        backgroundColor: Colors.light,
+        borderColor: 'black',
+    },
+    tableHeaderText: {
+        flex: 1,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        padding: 8,
+        color: Colors.dark,
+        borderColor: 'black',
+    },
+    tableRow: {
+        flexDirection: 'row',
+        borderColor: 'black',
+        backgroundColor: '#edf2f7',
+    },
+    tableData: {
+        flex: 1,
+        padding: 8,
+        textAlign: 'center',
+        color: Colors.dark,
+        borderColor: 'black',
     },
 });
 
