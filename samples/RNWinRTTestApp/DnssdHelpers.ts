@@ -130,10 +130,6 @@ export class DnssdLookupHelper {
 
     /**
      * A map that holds unique devices discovered by the device watcher during its listening sessions.
-     * 
-     * This map serves as the primary storage for devices that are detected in two primary scenarios:
-     * 1. During the initial scan executed when the watcher is started.
-     * 2. When new devices are discovered after the initial scan, as the watcher continues to monitor.
      * The contents of this map are cleared when the watcher is stopped, ensuring it remains fresh for each listening session.
      */
     private discoveredDevicesMap: { [id: string]: IDnssdServiceInstance } = {};
@@ -205,21 +201,11 @@ export class DnssdLookupHelper {
 
     /**
      * Stops the device watcher from listening for new devices.
-     * 
-     * This method is responsible for halting the device watcher, if it's currently active. Once stopped, the watcher will no longer detect or react to any changes in the devices available in the network. As a cleanup measure, upon successful stopping, the `discoveredDevicesMap` will be cleared to reset the state for future listening sessions.
-     * 
      * @remarks
      * If the watcher was not previously started, or is already stopped, this method will return `false`. On successful stopping, the method returns `true`.
-     * 
      * @example
      * // Stopping the device watcher:
      * const wasStopped = finder.stopListeningForDevices();
-     * if (wasStopped) {
-     *     console.log("Device watcher successfully stopped.");
-     * } else {
-     *     console.log("Device watcher was not active.");
-     * }
-     * 
      * @returns A boolean indicating whether the watcher was successfully stopped (`true`) or not (`false`).
      */
     public stopListeningForDevices(): boolean {
