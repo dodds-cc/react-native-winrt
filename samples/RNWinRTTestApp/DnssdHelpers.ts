@@ -128,6 +128,12 @@ export class DnssdLookupHelper {
         return services;
     }
 
+    /**
+     * Extracts device properties from the given IMapView object and constructs an IDnssdServiceInstance object.
+     *
+     * @param properties - An IMapView containing device properties.
+     * @returns A Partial<IDnssdServiceInstance> containing extracted device properties.
+     */
     private getDeviceFromProperties(properties: Windows.Foundation.Collections.IMapView<string, any>): Partial<IDnssdServiceInstance> {   
         let serviceInfo: Partial<IDnssdServiceInstance> = {};
     
@@ -147,8 +153,12 @@ export class DnssdLookupHelper {
                     case DnssdLookupHelper.IPADDRESS_PROPERTY:
                         let ipAddressesArray = value as string[];
                         serviceInfo.ipAddresses = ipAddressesArray;
-    
+
+                        // Handles cases where:
+                        // 1. Both ipv4 and ipv6 addresses are present
+                        // 2. Only an ipv6 address is present
                         if (ipAddressesArray.length > 0) {
+                            // Regex to check if an IP address is IPv4
                             const ipv4Pattern = /^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}$/;
     
                             if (ipv4Pattern.test(ipAddressesArray[0])) {
@@ -158,7 +168,9 @@ export class DnssdLookupHelper {
                             }
                         }
     
+                        // Handles cases where both ipv4 and ipv6 addresses are present
                         if (ipAddressesArray.length > 1) {
+                            // If two addresses are present, assume the second is always IPv6
                             serviceInfo.ipv6Address = ipAddressesArray[1];
                         }
                         break;
