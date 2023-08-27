@@ -48,12 +48,17 @@ export interface IDnssdServiceInstance {
 export class DnssdLookupHelper {
     private static instance: DnssdLookupHelper;
 
-    // Used to construct AQS query
+    private constructor() { } // Private constructor ensures no external instantiation
+
+    // Parameters to construct AQS query.
     // For specifics, refer https://learn.microsoft.com/en-us/windows/uwp/devices-sensors/enumerate-devices-over-a-network.
     private static readonly PROTOCOL_GUID = "{4526e8c1-8aac-4153-9b16-55e86ada0e54}"; // Protocol type for DNS-SD.
-    private static readonly DOMAIN = "local";
-    private static readonly SERVICE_NAME = "_ssh._tcp";
-    // private static readonly SERVICE_NAME = "_ipp._tcp";
+    private static readonly DOMAIN = "local"; // Example: "local" in "fooDevice._ssh._tcp.local".
+    private static readonly SERVICE_NAME = "_ssh._tcp"; // Change as needed. Example: "_ipp._tcp" in "fooDevice._ssh._tcp.local".
+
+    private static readonly aqsQuery = `System.Devices.AepService.ProtocolId:=${DnssdLookupHelper.PROTOCOL_GUID} 
+                                        AND System.Devices.Dnssd.Domain:=${DnssdLookupHelper.DOMAIN} 
+                                        AND System.Devices.Dnssd.ServiceName:=${DnssdLookupHelper.SERVICE_NAME}`;
 
     // Used to construct an iterable list of properties to look for in the devices that are discovered.
     private static readonly HOSTNAME_PROPERTY = "System.Devices.Dnssd.HostName";
@@ -64,7 +69,7 @@ export class DnssdLookupHelper {
     private static readonly TEXTATTRIBUTES_PROPERTY = "System.Devices.Dnssd.TextAttributes";
 
     // TO DO: Support changing propertyKeys from consumer-side if needed.
-    private propertyKeys = [
+    private static readonly propertyKeys = [
         DnssdLookupHelper.HOSTNAME_PROPERTY,
         DnssdLookupHelper.SERVICENAME_PROPERTY,
         DnssdLookupHelper.INSTANCENAME_PROPERTY,
@@ -73,7 +78,11 @@ export class DnssdLookupHelper {
         DnssdLookupHelper.TEXTATTRIBUTES_PROPERTY
     ];
 
-    private constructor() { } // Private constructor ensures no external instantiation
+    // NOTE: Casting `propertyKeys` to `unknown` first, and then to `Windows.Foundation.Collections.IIterable<string>`
+    // is a workaround to bypass type-related errors thrown by VS Code and in the runtime.
+    private static propertyKeysEnumerable = DnssdLookupHelper.propertyKeys as unknown as Windows.Foundation.Collections.IIterable<string>;
+
+    private DeviceWatcher : Windows.Devices.Enumeration.DeviceWatcher = null!;
 
     /**
      * Gets the singleton instance of `DnssdLookupHelper`.
@@ -90,79 +99,27 @@ export class DnssdLookupHelper {
     }
 
     /**
-     * Enumerates IDnssdServiceInstance implementing objects matching the query parameters.
+     * Enumerates IDnssdServiceInstance implement
+     * ing objects matching the query parameters.
      * @example
      * const finder = DnssdLookupHelper.getInstance();
      * let devices = await finder.findAllDevicesAsync();
      * @returns A Promise that resolves to an array of objects implementing IDnssdServiceInstance.
      */
     public async findAllDevicesAsync(): Promise<IDnssdServiceInstance[]> {
-        const services: IDnssdServiceInstance[] = [];
+        let services: IDnssdServiceInstance[] = [];
     
         try {
-            const query = `System.Devices.AepService.ProtocolId:=${DnssdLookupHelper.PROTOCOL_GUID} AND System.Devices.Dnssd.Domain:=${DnssdLookupHelper.DOMAIN} AND System.Devices.Dnssd.ServiceName:=${DnssdLookupHelper.SERVICE_NAME}`;
-    
-            // NOTE: Casting `propertyKeys` to `unknown` first, and then to `Windows.Foundation.Collections.IIterable<string>`
-            // is a workaround to bypass type-related errors thrown by VS Code and in the runtime.
-            const devices = await Windows.Devices.Enumeration.DeviceInformation.findAllAsync(
-                query,
-                (this.propertyKeys as unknown as Windows.Foundation.Collections.IIterable<string>),
+            let comDevices = await Windows.Devices.Enumeration.DeviceInformation.findAllAsync(
+                DnssdLookupHelper.aqsQuery,
+                DnssdLookupHelper.propertyKeysEnumerable,
                 Windows.Devices.Enumeration.DeviceInformationKind.associationEndpointService
             );
     
-            for (let i = 0; i < devices.size; i++) {
-                const device = devices.getAt(i);
-                const properties = device.properties;
-                const serviceInfo: Partial<IDnssdServiceInstance> = {};
-    
-                this.propertyKeys.forEach((key: string) => {
-                    if (properties.hasKey(key)) {
-                        const value = properties.lookup(key);
-                        switch (key) {
-                            case DnssdLookupHelper.HOSTNAME_PROPERTY:
-                                serviceInfo.hostName = value;
-                                break;
-                            case DnssdLookupHelper.SERVICENAME_PROPERTY:
-                                serviceInfo.serviceName = value;
-                                break;
-                            case DnssdLookupHelper.INSTANCENAME_PROPERTY:
-                                serviceInfo.instanceName = value;
-                                break;
-                            case DnssdLookupHelper.IPADDRESS_PROPERTY:
-                            let ipAddressesArray = value as string[];
-                            serviceInfo.ipAddresses = ipAddressesArray;
-                            
-                            // Handles cases where:
-                            // 1. Both ipv4 and ipv6 addresses are present
-                            // 2. Only an ipv6 address is present
-                            if (ipAddressesArray.length > 0) {
-                                // Regex to check if an IP address is IPv4
-                                const ipv4Pattern = /^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}$/;
-
-                                if (ipv4Pattern.test(ipAddressesArray[0])) {
-                                    serviceInfo.ipv4Address = ipAddressesArray[0];
-                                } else {
-                                    serviceInfo.ipv6Address = ipAddressesArray[0];
-                                }
-                            }
-
-                            // Handles cases where both ipv4 and ipv6 addresses are present
-                            if (ipAddressesArray.length > 1) {
-                                // If two addresses are present, assume the second is always IPv6
-                                serviceInfo.ipv6Address = ipAddressesArray[1];
-                            }
-                            break;
-                            case DnssdLookupHelper.PORTNUMBER_PROPERTY:
-                                serviceInfo.portNumber = value;
-                                break;
-                            case DnssdLookupHelper.TEXTATTRIBUTES_PROPERTY:
-                                serviceInfo.textAttributes = value;
-                                break;
-                        }
-                    }
-                });
-
-                services.push(serviceInfo as IDnssdServiceInstance);
+            for (let i = 0; i < comDevices.size; i++) {
+                let comDevice = comDevices.getAt(i);
+                let device = this.getDeviceFromProperties(comDevice.properties);
+                services.push(device as IDnssdServiceInstance);
             }
             console.log(`Found ${services.length} service(s)`);
         } catch (error) {
@@ -170,5 +127,52 @@ export class DnssdLookupHelper {
         }
     
         return services;
+    }
+
+    private getDeviceFromProperties(properties: Windows.Foundation.Collections.IMapView<string, any>): Partial<IDnssdServiceInstance> {   
+        let serviceInfo: Partial<IDnssdServiceInstance> = {};
+    
+        DnssdLookupHelper.propertyKeys.forEach((key: string) => {
+            if (properties.hasKey(key)) {
+                const value = properties.lookup(key);
+                switch (key) {
+                    case DnssdLookupHelper.HOSTNAME_PROPERTY:
+                        serviceInfo.hostName = value;
+                        break;
+                    case DnssdLookupHelper.SERVICENAME_PROPERTY:
+                        serviceInfo.serviceName = value;
+                        break;
+                    case DnssdLookupHelper.INSTANCENAME_PROPERTY:
+                        serviceInfo.instanceName = value;
+                        break;
+                    case DnssdLookupHelper.IPADDRESS_PROPERTY:
+                        let ipAddressesArray = value as string[];
+                        serviceInfo.ipAddresses = ipAddressesArray;
+    
+                        if (ipAddressesArray.length > 0) {
+                            const ipv4Pattern = /^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}$/;
+    
+                            if (ipv4Pattern.test(ipAddressesArray[0])) {
+                                serviceInfo.ipv4Address = ipAddressesArray[0];
+                            } else {
+                                serviceInfo.ipv6Address = ipAddressesArray[0];
+                            }
+                        }
+    
+                        if (ipAddressesArray.length > 1) {
+                            serviceInfo.ipv6Address = ipAddressesArray[1];
+                        }
+                        break;
+                    case DnssdLookupHelper.PORTNUMBER_PROPERTY:
+                        serviceInfo.portNumber = value;
+                        break;
+                    case DnssdLookupHelper.TEXTATTRIBUTES_PROPERTY:
+                        serviceInfo.textAttributes = value;
+                        break;
+                }
+            }
+        });
+    
+        return serviceInfo;
     }
 }
