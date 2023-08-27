@@ -54,7 +54,7 @@ export class DnssdLookupHelper {
     // For specifics, refer https://learn.microsoft.com/en-us/windows/uwp/devices-sensors/enumerate-devices-over-a-network.
     private static readonly PROTOCOL_GUID = "{4526e8c1-8aac-4153-9b16-55e86ada0e54}"; // Protocol type for DNS-SD.
     private static readonly DOMAIN = "local"; // Example: "local" in "fooDevice._ssh._tcp.local".
-    private static readonly SERVICE_NAME = "_ssh._tcp"; // Change as needed. Example: "_ipp._tcp" in "fooDevice._ssh._tcp.local".
+    private static readonly SERVICE_NAME = "_ipp._tcp"; // Change as needed. Example: "_ipp._tcp" in "fooDevice._ssh._tcp.local".
 
     private static readonly aqsQuery = `System.Devices.AepService.ProtocolId:=${DnssdLookupHelper.PROTOCOL_GUID} 
                                         AND System.Devices.Dnssd.Domain:=${DnssdLookupHelper.DOMAIN} 
@@ -126,6 +126,111 @@ export class DnssdLookupHelper {
         }
     
         return services;
+    }
+
+    /**
+     * A map that holds unique devices discovered by the device watcher during its listening sessions.
+     * 
+     * This map serves as the primary storage for devices that are detected in two primary scenarios:
+     * 1. During the initial scan executed when the watcher is started.
+     * 2. When new devices are discovered after the initial scan, as the watcher continues to monitor.
+     * The contents of this map are cleared when the watcher is stopped, ensuring it remains fresh for each listening session.
+     */
+    private discoveredDevicesMap: { [id: string]: IDnssdServiceInstance } = {};
+
+    /**
+     * Starts listening for devices and subscribes to the `added` and `updated` events.
+     * 
+     * This function creates a watcher to look for devices on the network. 
+     * The lookup happens in two parts, roughly:
+     * 1. An initial scan to discover all currently available devices. Here, all available devices are enumerated.
+     * 2. Once enumeration is completed, continuous monitoring for updates, such as when a new device is added to the network.
+     * 
+     * It's worth noting that devices already discovered during the initial scan may, under some conditions, trigger the "updated" event. 
+     * To work around this, we maintain a hash map and only add a new device when its ID is unique.
+     *
+     * @param callback A function that's invoked whenever a new device is detected or an existing one is updated. This function must accept an array of all devices discovered so far.
+     * @example
+     * const finder = DnssdLookupHelper.getInstance();
+     * finder.startListeningForDevicesAsync((services) => {
+     *     console.log(`Total services discovered: ${services.length}`);
+     * });
+     * 
+     * @returns A Promise that resolves to a boolean. The promise will return `true` if the watcher was successfully started, and `false` otherwise.
+     */
+    public startListeningForDevicesAsync(callback: (discoveredServices: IDnssdServiceInstance[]) => void): Promise<boolean> {
+        return new Promise<boolean>((resolve) => {
+            let status = false;
+            
+            this.DeviceWatcher = null!;
+            if (!this.DeviceWatcher) {
+                this.DeviceWatcher = Windows.Devices.Enumeration.DeviceInformation.createWatcher(
+                    DnssdLookupHelper.aqsQuery,
+                    DnssdLookupHelper.propertyKeysEnumerable,
+                    Windows.Devices.Enumeration.DeviceInformationKind.associationEndpointService
+                );
+    
+                // After starting the watcher, a complete network scan is done until all the available devices are enumerated.
+                // For each discovered device, the added event is raised. However, once the initial enumeration is completed,
+                // the added event will not be fired when new devices are added to the network.
+                this.DeviceWatcher.addEventListener("added", (_watcher, _comDevice) => {
+                    var id = _comDevice.id;
+                    console.log(`device with id ${id} added..`);
+                    var device = this.getDeviceFromProperties(_comDevice.properties);
+                    this.discoveredDevicesMap[id] = device as IDnssdServiceInstance;
+                    callback(Object.values(this.discoveredDevicesMap));
+                });
+
+                // When a device is added to the network after initial enumeration is completed, the updated event is fired.
+                // However, this event false fires as well, saying devices discovered in intitial scan were updated while they
+                // were not. To work around this, we first check if this device was already discovered.
+                this.DeviceWatcher.addEventListener("updated", (_watcher, _comDevice) => {
+                    var id = _comDevice.id;
+                    if (!this.discoveredDevicesMap[id])
+                    {
+                        console.log(`device with id ${id} updated..`);
+                        var device = this.getDeviceFromProperties(_comDevice.properties);
+                        this.discoveredDevicesMap[id] = device as IDnssdServiceInstance;
+                        callback(Object.values(this.discoveredDevicesMap));
+                    }                   
+                });
+
+                this.DeviceWatcher.start();
+                status = true;
+            }
+
+            resolve(status);
+        });
+    }
+
+    /**
+     * Stops the device watcher from listening for new devices.
+     * 
+     * This method is responsible for halting the device watcher, if it's currently active. Once stopped, the watcher will no longer detect or react to any changes in the devices available in the network. As a cleanup measure, upon successful stopping, the `discoveredDevicesMap` will be cleared to reset the state for future listening sessions.
+     * 
+     * @remarks
+     * If the watcher was not previously started, or is already stopped, this method will return `false`. On successful stopping, the method returns `true`.
+     * 
+     * @example
+     * // Stopping the device watcher:
+     * const wasStopped = finder.stopListeningForDevices();
+     * if (wasStopped) {
+     *     console.log("Device watcher successfully stopped.");
+     * } else {
+     *     console.log("Device watcher was not active.");
+     * }
+     * 
+     * @returns A boolean indicating whether the watcher was successfully stopped (`true`) or not (`false`).
+     */
+    public stopListeningForDevices(): boolean {
+        if (this.DeviceWatcher)
+        {
+            this.DeviceWatcher.stop();
+            this.DeviceWatcher = null!;
+            this.discoveredDevicesMap = {};
+            return true;
+        }
+        return false;
     }
 
     /**
