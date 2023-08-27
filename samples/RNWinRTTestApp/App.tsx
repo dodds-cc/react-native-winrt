@@ -168,25 +168,34 @@ const App = () => {
     const handleDiscoverDevices = async () => {
         const dnssdLookupHelper = DnssdLookupHelper.getInstance();
 
-        setScanStatus('Scan in progress...');
-        console.log("calling dnssdLookupHelper.findAllDevicesAsync()");
+        console.log("calling dnssdLookupHelper.startListeningForDevices()");
+        await dnssdLookupHelper.startListeningForDevicesAsync((devices: IDnssdServiceInstance[]) => {
+            console.log("Discovered devices so far:");
+            devices.forEach(device => {
+                console.log(device);
+            });
+            setDiscoveredDevices(devices);
+        });
 
-        const startTime = Date.now();  // Capture start time
+        // setScanStatus('Scan in progress...');
+        // console.log("calling dnssdLookupHelper.findAllDevicesAsync()");
+
+        // const startTime = Date.now();  // Capture start time
     
-        let discoveredDevices : IDnssdServiceInstance[] = await dnssdLookupHelper.findAllDevicesAsync();
+        // let discoveredDevices : IDnssdServiceInstance[] = await dnssdLookupHelper.findAllDevicesAsync();
     
-        const endTime = Date.now();  // Capture end time
+        // const endTime = Date.now();  // Capture end time
     
-        const duration = (endTime - startTime) / 1000;  // Calculate duration in seconds
-        const numberOfDevices = discoveredDevices.length;
+        // const duration = (endTime - startTime) / 1000;  // Calculate duration in seconds
+        // const numberOfDevices = discoveredDevices.length;
     
-        console.log(`Scan completed in ${duration} seconds. Found ${numberOfDevices} device(s).`);
+        // console.log(`Scan completed in ${duration} seconds. Found ${numberOfDevices} device(s).`);
     
-        setScanStatus(`Scan completed in ${duration} seconds. Found ${numberOfDevices} device(s).`);
-        console.log(discoveredDevices);
+        // setScanStatus(`Scan completed in ${duration} seconds. Found ${numberOfDevices} device(s).`);
+        // console.log(discoveredDevices);
         
         // Populate the discoveredDevices state
-        setDiscoveredDevices(discoveredDevices);
+        // setDiscoveredDevices(discoveredDevices);
     }
     
 
