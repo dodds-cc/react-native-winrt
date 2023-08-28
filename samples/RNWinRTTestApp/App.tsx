@@ -166,7 +166,11 @@ const App = () => {
     const [scanStatus, setScanStatus] = useState('');
 
     const handleDiscoverDevices = async () => {
+        setScanStatus('Scan in progress...');
+
         const dnssdLookupHelper = DnssdLookupHelper.getInstance();
+
+        // Tests dnssdLookupHelper.startListeningForDevicesAsync:
 
         console.log("calling dnssdLookupHelper.startListeningForDevices()");
         await dnssdLookupHelper.startListeningForDevicesAsync((devices: IDnssdServiceInstance[]) => {
@@ -177,7 +181,8 @@ const App = () => {
             setDiscoveredDevices(devices);
         });
 
-        // setScanStatus('Scan in progress...');
+        // Test dnssdLookupHelper.findAllDevicesAsync:
+
         // console.log("calling dnssdLookupHelper.findAllDevicesAsync()");
 
         // const startTime = Date.now();  // Capture start time
@@ -194,7 +199,7 @@ const App = () => {
         // setScanStatus(`Scan completed in ${duration} seconds. Found ${numberOfDevices} device(s).`);
         // console.log(discoveredDevices);
         
-        // Populate the discoveredDevices state
+        // // Populate the discoveredDevices state
         // setDiscoveredDevices(discoveredDevices);
     }
     
