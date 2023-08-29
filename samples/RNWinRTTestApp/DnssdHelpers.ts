@@ -139,6 +139,8 @@ export class DnssdLookupHelper {
     private discoveredDevicesMap: { [id: string]: IDnssdServiceInstance } = {};
 
     private currentSessionCallback: (discoveredServices: IDnssdServiceInstance[]) => void = () => {};
+
+    private DEVICE_INFORMATION_PARSING_DELAY : number = 500;
     
     /**
      * Starts listening for devices and subscribes to the `added` and `updated` events.
@@ -212,7 +214,7 @@ export class DnssdLookupHelper {
     }
     
     private async handleDeviceAdded(_comDevice: any, callback: (discoveredServices: IDnssdServiceInstance[]) => void): Promise<void> {
-        await delay(500);
+        await delay(this.DEVICE_INFORMATION_PARSING_DELAY);
         var id = _comDevice.id;
         if (!this.discoveredDevicesMap[id])
         {
@@ -228,7 +230,7 @@ export class DnssdLookupHelper {
     }
 
     private async handleDeviceUpdated(_comDevice: any, callback: (discoveredServices: IDnssdServiceInstance[]) => void): Promise<void> {
-        await delay(500);
+        await delay(this.DEVICE_INFORMATION_PARSING_DELAY);
         var id = _comDevice.id;
         if (!this.discoveredDevicesMap[id])
         {
