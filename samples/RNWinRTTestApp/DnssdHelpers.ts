@@ -38,6 +38,10 @@ export interface IDnssdServiceInstance {
     textAttributes: string;
 }
 
+function delay(ms: number): Promise<void> {
+    return new Promise<void>(resolve => setTimeout(() => resolve(), ms));
+}
+
 /**
  * Helper class for looking up devices using the DNS-SD protocol.
  * The class is implemented as a singleton, ensuring only one instance is created.
@@ -134,6 +138,8 @@ export class DnssdLookupHelper {
      */
     private discoveredDevicesMap: { [id: string]: IDnssdServiceInstance } = {};
 
+    private currentSessionCallback: (discoveredServices: IDnssdServiceInstance[]) => void = () => {};
+    
     /**
      * Starts listening for devices and subscribes to the `added` and `updated` events.
      * 
@@ -154,7 +160,8 @@ export class DnssdLookupHelper {
      * 
      * @returns A Promise that resolves to a boolean. The promise will return `true` if the watcher was successfully started, and `false` otherwise.
      */
-    public startListeningForDevicesAsync(callback: (discoveredServices: IDnssdServiceInstance[]) => void): Promise<boolean> {
+    public startListeningForDevicesAsync(callback: (discoveredServices: IDnssdServiceInstance[]) => void,
+                                                    shouldListenForUpdates: boolean = false): Promise<boolean> {
         return new Promise<boolean>((resolve) => {
             let status = false;
             
@@ -165,31 +172,32 @@ export class DnssdLookupHelper {
                     DnssdLookupHelper.propertyKeysEnumerable,
                     Windows.Devices.Enumeration.DeviceInformationKind.associationEndpointService
                 );
+
+                this.currentSessionCallback = callback;
     
+                this.DeviceWatcher.addEventListener("enumerationcompleted", (_watcher, _comDevice) => {
+                    console.log(`device enumeration completed. watcher status: ${_watcher.status}`);
+                    if (!shouldListenForUpdates)
+                    {
+                        this.stopListeningForDevices();
+                    }
+                });
+
                 // After starting the watcher, a complete network scan is done until all the available devices are enumerated.
                 // For each discovered device, the added event is raised. However, once the initial enumeration is completed,
                 // the added event will not be fired when new devices are added to the network.
-                this.DeviceWatcher.addEventListener("added", (_watcher, _comDevice) => {
-                    var id = _comDevice.id;
-                    console.log(`device with id ${id} added..`);
-                    var device = this.getDeviceFromProperties(_comDevice.properties);
-                    this.discoveredDevicesMap[id] = device as IDnssdServiceInstance;
-                    callback(Object.values(this.discoveredDevicesMap));
-                });
+                // this.DeviceWatcher.addEventListener("added", async (_watcher, _comDevice) => {
+                //     await this.handleDeviceAdded(_comDevice, callback);
+                // });
+                this.DeviceWatcher.addEventListener("added", this.onDeviceAdded.bind(this));
 
                 // When a device is added to the network after initial enumeration is completed, the updated event is fired.
                 // However, this event false fires as well, saying devices discovered in intitial scan were updated while they
                 // were not. To work around this, we first check if this device was already discovered.
-                this.DeviceWatcher.addEventListener("updated", (_watcher, _comDevice) => {
-                    var id = _comDevice.id;
-                    if (!this.discoveredDevicesMap[id])
-                    {
-                        console.log(`device with id ${id} updated..`);
-                        var device = this.getDeviceFromProperties(_comDevice.properties);
-                        this.discoveredDevicesMap[id] = device as IDnssdServiceInstance;
-                        callback(Object.values(this.discoveredDevicesMap));
-                    }                   
-                });
+                if (shouldListenForUpdates)
+                {
+                    this.DeviceWatcher.addEventListener("updated", this.onDeviceUpdated.bind(this));
+                }
 
                 this.DeviceWatcher.start();
                 status = true;
@@ -197,6 +205,38 @@ export class DnssdLookupHelper {
 
             resolve(status);
         });
+    }
+
+    private async onDeviceAdded(_watcher: any, _comDevice: any): Promise<void> {
+        await this.handleDeviceAdded(_comDevice, this.currentSessionCallback);
+    }
+    
+    private async handleDeviceAdded(_comDevice: any, callback: (discoveredServices: IDnssdServiceInstance[]) => void): Promise<void> {
+        await delay(500);
+        var id = _comDevice.id;
+        if (!this.discoveredDevicesMap[id])
+        {
+            var device = this.getDeviceFromProperties(_comDevice.properties);
+            this.discoveredDevicesMap[id] = device as IDnssdServiceInstance;
+            console.log(`device with id ${id} added..`);          
+            callback(Object.values(this.discoveredDevicesMap));
+        }
+    }
+
+    private async onDeviceUpdated(_watcher: any, _comDevice: any): Promise<void> {
+        await this.handleDeviceUpdated(_comDevice, this.currentSessionCallback);
+    }
+
+    private async handleDeviceUpdated(_comDevice: any, callback: (discoveredServices: IDnssdServiceInstance[]) => void): Promise<void> {
+        await delay(500);
+        var id = _comDevice.id;
+        if (!this.discoveredDevicesMap[id])
+        {
+            var device = this.getDeviceFromProperties(_comDevice.properties);
+            this.discoveredDevicesMap[id] = device as IDnssdServiceInstance;
+            console.log(`device with id ${id} updated..`);
+            callback(Object.values(this.discoveredDevicesMap));
+        }
     }
 
     /**
@@ -211,7 +251,10 @@ export class DnssdLookupHelper {
     public stopListeningForDevices(): boolean {
         if (this.DeviceWatcher)
         {
+            console.log("stopping device watcher");
             this.DeviceWatcher.stop();
+            // this.DeviceWatcher.removeEventListener("added", this.onDeviceAdded.bind(this));
+            // this.DeviceWatcher.removeEventListener("updated", this.onDeviceUpdated.bind(this));
             this.DeviceWatcher = null!;
             this.discoveredDevicesMap = {};
             return true;

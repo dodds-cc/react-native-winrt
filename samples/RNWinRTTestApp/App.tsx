@@ -179,7 +179,7 @@ const App = () => {
                 console.log(device);
             });
             setDiscoveredDevices(devices);
-        });
+        }, true);
 
         // Test dnssdLookupHelper.findAllDevicesAsync:
 
