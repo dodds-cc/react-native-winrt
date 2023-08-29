@@ -52,7 +52,7 @@ export class DnssdLookupHelper {
   private static readonly PROTOCOL_GUID =
     "{4526e8c1-8aac-4153-9b16-55e86ada0e54}"; // Protocol type for DNS-SD.
   private static readonly DOMAIN = "local"; // Example: "local" in "fooDevice._ssh._tcp.local".
-  private static readonly SERVICE_NAME = "_ipp._tcp"; // Change as needed. Example: "_ipp._tcp" in "fooDevice._ssh._tcp.local".
+  private static readonly SERVICE_NAME = "_ipp._tcp"; // Change as needed. Example: "_ipp._tcp" in "fooDevice._ipp._tcp.local".
 
   private static readonly aqsQuery = `System.Devices.AepService.ProtocolId:=${DnssdLookupHelper.PROTOCOL_GUID} 
                                         AND System.Devices.Dnssd.Domain:=${DnssdLookupHelper.DOMAIN} 
@@ -280,6 +280,7 @@ export class DnssdLookupHelper {
       // this.DeviceWatcher.removeEventListener("updated", this.onDeviceUpdated.bind(this));
       this.DeviceWatcher = null!;
       this.discoveredDevicesMap = {};
+      this.currentSessionCallback = () => {};
       return true;
     }
     return false;
