@@ -164,6 +164,8 @@ export class DnssdLookupHelper {
    * To work around this, we maintain a hash map and only add a new device when its ID is unique.
    *
    * @param callback A function that's invoked whenever a new device is detected or an existing one is updated. This function must accept an array of all devices discovered so far.
+   * @param shouldListenForUpdates A flag indicating whether the device watcher should continue listening for updates after initial enumeration is completed. 
+   * If false, the watcher will be stopped after enumeration. Default value is `false`.
    * @example
    * const finder = DnssdLookupHelper.getInstance();
    * finder.startListeningForDevicesAsync((services) => {
