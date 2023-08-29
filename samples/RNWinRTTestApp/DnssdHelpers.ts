@@ -1,6 +1,3 @@
-const Dnssd = Windows.Networking.ServiceDiscovery.Dnssd;
-const DnssdServiceWatcher = Dnssd.DnssdServiceWatcher;
-
 /**
  * Encapsulates an instance of a service that uses DNS Service Discovery (DNS-SD).
  * This interface is based on Windows.Networking.ServiceDiscovery.Dnssd.DnssdServiceInstance.
@@ -36,10 +33,6 @@ export interface IDnssdServiceInstance {
 
   /** Text data associated with the service instance. Each string is typically a key-value pair, separated by "=". */
   textAttributes: string;
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise<void>((resolve) => setTimeout(() => resolve(), ms));
 }
 
 /**
@@ -353,3 +346,7 @@ export class DnssdLookupHelper {
     return serviceInfo;
   }
 }
+
+function delay(ms: number): Promise<void> {
+    return new Promise<void>((resolve) => setTimeout(() => resolve(), ms));
+}  
