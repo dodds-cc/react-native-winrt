@@ -237,12 +237,10 @@ export class DnssdLookupHelper {
   ): Promise<void> {
     await delay(this.DEVICE_INFORMATION_PARSING_DELAY);
     var id = _comDevice.id;
-    if (!this.discoveredDevicesMap[id]) {
-      var device = this.getDeviceFromProperties(_comDevice.properties);
-      this.discoveredDevicesMap[id] = device as IDnssdServiceInstance;
-      console.log(`device with id ${id} added..`);
-      callback(Object.values(this.discoveredDevicesMap));
-    }
+    var device = this.getDeviceFromProperties(_comDevice.properties);
+    this.discoveredDevicesMap[id] = device as IDnssdServiceInstance;
+    console.log(`device with id ${id} added..`);
+    callback(Object.values(this.discoveredDevicesMap));
   }
 
   private async onDeviceUpdated(_watcher: any, _comDevice: any): Promise<void> {
@@ -275,12 +273,12 @@ export class DnssdLookupHelper {
   public stopListeningForDevices(): boolean {
     if (this.DeviceWatcher) {
       console.log("stopping device watcher");
-      this.DeviceWatcher.stop();
       // this.DeviceWatcher.removeEventListener("added", this.onDeviceAdded.bind(this));
       // this.DeviceWatcher.removeEventListener("updated", this.onDeviceUpdated.bind(this));
+      // NOTE: Expecting DeviceWatcher.Stop() to remove listeners internally.
+      this.DeviceWatcher.stop();
       this.DeviceWatcher = null!;
       this.discoveredDevicesMap = {};
-      this.currentSessionCallback = () => {};
       return true;
     }
     return false;
@@ -350,4 +348,4 @@ export class DnssdLookupHelper {
 
 function delay(ms: number): Promise<void> {
     return new Promise<void>((resolve) => setTimeout(() => resolve(), ms));
-}  
+}
